@@ -900,8 +900,14 @@ class TradingEngine:
     def calc_pullback_entry(self, direction: str, daily: dict) -> dict:
         """
         Calcula el nivel de entrada en PULLBACK (retroceso a la EMA20).
-        En vez de entrar al precio de mercado (caro, extendido), espera a que
-        el precio retroceda a la EMA20 con una orden LÍMITE — mejor precio, mejor R:R.
+
+        NINGUNA señal nueva usa esto desde 2026-09-15 (ver generate_signal,
+        rama LONG/SHORT): con la puerta de RSI ya filtrando lo extendido,
+        medido que esperar el pullback no mejoraba el R:B de forma confiable
+        y sí perdía operaciones por vencimiento -- toda señal nueva entra a
+        MERCADO. Esta función sigue viva solo para RE-PRECIAR una orden
+        LÍMITE que haya quedado registrada de ANTES de ese cambio
+        (update_pending_order, y su espejo en backtest.py Trade.step_pending).
 
         Retorna: entry (nivel), entry_type ("LIMITE" o "MERCADO") y los pips
         que el precio debe retroceder para activar la orden.
@@ -1780,8 +1786,24 @@ class TradingEngine:
         sl_distance = max(atr * self.ATR_MULTIPLIER, self.MIN_PIPS_SL * self.PIP_VALUE)
 
         if score_b >= self.MIN_SCORE and score_b > score_s and not weak_trend and not block_long_rsi:
-            pb    = self.calc_pullback_entry("LONG", daily)
-            entry = pb["entry"]
+            # Entrada a MERCADO, siempre -- ya NO se espera el retroceso a la
+            # EMA20 con orden límite (ver informe "Entradas tardías", medido
+            # 2026-09-15, decisión del usuario). Con la puerta de RSI activa,
+            # de las señales que la pasan el 64% ya estaba en zona de todos
+            # modos, y para el otro 36% esperar el pullback no mejoraba el R:B
+            # de forma confiable (mejora en 10 de 20 casos medidos, mediana
+            # +0.00 -- moneda al aire: el TP2 apunta al nivel técnico más
+            # cercano, no a uno fijo, así que comprar más barato no siempre
+            # deja más margen hasta ÉL). Lo que sí costaba: órdenes límite que
+            # vencían sin llenarse (PENDING_EXPIRY_DAYS) mientras el precio
+            # nunca volvía. Backtest 6 pares 2024-04/2026-07 con la puerta de
+            # RSI puesta: pullback 47 trades/+$106 (mitades +$63/+$44) vs
+            # mercado 56 trades/+$122 (mitades +$71/+$51) -- más operaciones
+            # capturadas, más plata, igual de estable entre mitades.
+            # calc_pullback_entry() se queda en el motor solo para RE-PRECIAR
+            # una orden LÍMITE que ya haya quedado registrada de antes de este
+            # cambio (ver update_pending_order) -- ninguna señal nueva la usa.
+            entry = round(daily["close"], 5)
             sl    = round(entry - sl_distance, 5)
             tps   = self.calc_take_profits("LONG", entry, sl, daily)
             expected_r = 0.5 * self.TP1_R + 0.5 * tps["rr2"]   # 50% cierra en TP1, 50% en TP2
@@ -1797,16 +1819,15 @@ class TradingEngine:
                 return {"signal": "NEUTRAL", "valid": False, "score_b": score_b, "score_s": score_s,
                         "weak_trend": False, "zero_lots": True}
             mgmt  = self.build_management("LONG", entry, sl, daily)
-            pvm   = self.pullback_vs_market("LONG", daily, h4)
             if tps["warning"]:
                 reasons_b.append("⚠ " + tps["warning"])
             return {
                 "signal":       "COMPRA",
                 "direction":    "LONG",
                 "entry":        entry,
-                "entry_type":   pb["entry_type"],
-                "retrace_pips": pb["retrace_pips"],
-                "current":      pb["current"],
+                "entry_type":   "MERCADO",
+                "retrace_pips": 0.0,
+                "current":      entry,
                 "sl":           sl,
                 "tp1":          tps["tp1"],
                 "tp":           tps["tp2"],
@@ -1816,12 +1837,11 @@ class TradingEngine:
                 "mgmt":         mgmt,
                 "rr":           tps["rr2"],
                 "valid":        True,
-                **pvm,
             }
 
         elif score_s >= self.MIN_SCORE and score_s > score_b and not weak_trend and not block_short and not block_short_rsi:
-            pb    = self.calc_pullback_entry("SHORT", daily)
-            entry = pb["entry"]
+            # Entrada a MERCADO, siempre -- ver comentario en la rama LONG.
+            entry = round(daily["close"], 5)
             sl    = round(entry + sl_distance, 5)
             tps   = self.calc_take_profits("SHORT", entry, sl, daily)
             expected_r = 0.5 * self.TP1_R + 0.5 * tps["rr2"]
@@ -1832,16 +1852,15 @@ class TradingEngine:
                 return {"signal": "NEUTRAL", "valid": False, "score_b": score_b, "score_s": score_s,
                         "weak_trend": False, "zero_lots": True}
             mgmt  = self.build_management("SHORT", entry, sl, daily)
-            pvm   = self.pullback_vs_market("SHORT", daily, h4)
             if tps["warning"]:
                 reasons_s.append("⚠ " + tps["warning"])
             return {
                 "signal":       "VENTA",
                 "direction":    "SHORT",
                 "entry":        entry,
-                "entry_type":   pb["entry_type"],
-                "retrace_pips": pb["retrace_pips"],
-                "current":      pb["current"],
+                "entry_type":   "MERCADO",
+                "retrace_pips": 0.0,
+                "current":      entry,
                 "sl":           sl,
                 "tp1":          tps["tp1"],
                 "tp":           tps["tp2"],
@@ -1851,7 +1870,6 @@ class TradingEngine:
                 "mgmt":         mgmt,
                 "rr":           tps["rr2"],
                 "valid":        True,
-                **pvm,
             }
 
         return {
@@ -2119,7 +2137,7 @@ class TradingEngine:
             entry_val    = (f"{trade['entry']:.5f}  "
                             f"(precio actual {trade['current']:.5f} → esperar {trade['retrace_pips']:.0f} pips de retroceso)")
         else:
-            entry_label  = "🎯 Entrada a MERCADO (precio ya en pullback)"
+            entry_label  = "🎯 Entrada a MERCADO"
             entry_val    = f"{trade['entry']:.5f}"
         tp1_pips = abs(trade["tp1"] - trade["entry"]) / self.PIP_VALUE
         tp2_pips = abs(trade["tp"] - trade["entry"]) / self.PIP_VALUE
