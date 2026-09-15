@@ -100,6 +100,13 @@ class PairConfig:
     # 15 de MACD = 63 >= MIN_SCORE), es decir apostando contra la tendencia
     # secular del índice. No aplica a divisas, que no tienen tal deriva.
     no_short_above_ema200: bool = False
+    # Puerta binaria de RSI (ver TradingEngine.MAX_RSI_TO_TRADE / generate_signal):
+    # bloquea una señal cuyo RSI ya esté extendido en su propia dirección, sin
+    # importar el score. Validada en backtest sobre los 4 pares en vivo (ver
+    # informe "Entradas tardías", 2026-09-14). True por defecto para forex;
+    # el US500 la desactiva explícitamente más abajo (medición neutra, n=12 --
+    # insuficiente para decidir, mismo criterio que regime_penalises=False).
+    rsi_gate_enabled: bool = True
     # Datos de backtest (ver backtest.py) -- nombres de los archivos de velas
     # descargados en backtest_data/. None si el par todavía no tiene datos.
     backtest_daily_file: str | None = None
@@ -352,6 +359,12 @@ US500_CONFIG = PairConfig(
     # a la vista sin dejar que decida. Muestra pequeña (10 trades): revisar
     # cuando haya más histórico.
     regime_penalises=False,
+    # Puerta de RSI (ver PairConfig.rsi_gate_enabled): medida por separado sobre
+    # el US500 el 2026-09-14 -- 12 trades sin puerta vs 11 con ella, +$65 vs
+    # +$65 netos. Efecto neutro sobre una muestra demasiado pequeña para
+    # decidir (el quinto sistema opera poco): se deja desactivada hasta tener
+    # histórico propio, igual que regime_penalises arriba.
+    rsi_gate_enabled=False,
     bt_spread_units=0.6,             # puntos: spread típico del US500 (0.4-1.0)
     bt_commission_per_lot=0.0,       # los CFD de índice cobran vía spread, sin comisión aparte
     bt_financing_annual_pct=6.5,     # ~SOFR + 2.5% sobre el nocional -- ESTIMACIÓN, confirmar con el bróker
