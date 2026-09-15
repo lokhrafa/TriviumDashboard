@@ -1,0 +1,2 @@
+fecha,hora,direccion,entrada,tipo_entrada,stop_loss,tp1,take_profit,pips_sl,lotes,score,riesgo_usd,riesgo_usd_real,ganancia_potencial_usd,precio_senal,resultado,fecha_cierre,pips_resultado,motivo_cierre,mfe_precio,mfe_pips,mae_precio,mae_pips
+2026-07-13,19:40,SHORT,1.14208,LIMITE,1.14658,1.13758,1.13600,45.0,0.03,65,16.66,,19.58,1.13832,LOSS,,,,,,,
