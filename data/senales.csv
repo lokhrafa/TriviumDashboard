@@ -1,0 +1,5 @@
+fecha,hora,direccion,entrada,tipo_entrada,stop_loss,tp1,take_profit,pips_sl,lotes,score,riesgo_usd,riesgo_usd_real,ganancia_potencial_usd,precio_senal,resultado,fecha_cierre,pips_resultado,motivo_cierre,pips_tp1_parcial,mfe_precio,mfe_pips,mae_precio,mae_pips
+2026-06-23,06:13,SHORT,0.70568,LIMITE,0.71018,,0.69443,45.0,0.11,60,50.00,,125.00,,CANCELADA,,,,,,,,
+2026-06-25,19:30,SHORT,0.69059,LIMITE,0.69500,,0.67945,45.0,0.11,60,50.00,,125.00,,LOSS,,,,,,,,
+2026-07-15,18:49,LONG,0.69830,LIMITE,0.69380,0.70280,0.70400,45.0,0.02,68,12.50,,14.19,0.70055,BE,,,,,,,,
+2026-08-30,18:06,LONG,0.71599,LIMITE,0.71012,0.72186,0.72752,58.7,0.02,50,12.50,11.74,18.50,0.71755,BE,2026-09-10,-0.8,MANUAL,+58.7,0.72380,+78.1,0.71572,-2.7
