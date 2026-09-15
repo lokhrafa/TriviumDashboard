@@ -965,6 +965,14 @@ function renderCard(p, history, newsWindowHours, ohlcHist) {
     card.appendChild(el("div", "alert warn",
       "⚠️ Hubo una señal técnica pero el Stop Loss (ATR alto) es tan amplio que el lote calculado redondea a 0.00 — bloqueada, no operable con el capital actual"));
   }
+  if (p.mode === "SIN SETUP" && p.block_long_rsi) {
+    card.appendChild(el("div", "alert warn",
+      "⚠️ RSI extendido al alza (ver RSI arriba) — compra bloqueada aunque el score alcance el mínimo, el precio ya subió demasiado para entrar"));
+  }
+  if (p.mode === "SIN SETUP" && p.block_short_rsi) {
+    card.appendChild(el("div", "alert warn",
+      "⚠️ RSI extendido a la baja (ver RSI arriba) — venta bloqueada aunque el score alcance el mínimo, el precio ya bajó demasiado para entrar"));
+  }
 
   card.appendChild(sparkline(history));
 
