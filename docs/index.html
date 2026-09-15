@@ -1589,9 +1589,18 @@ function renderStaticFreshness(state) {
   el.style.display = "block";
 }
 
+// GitHub Pages sirve todo con Cache-Control: max-age=600 (10 min) y no se
+// puede cambiar sin backend propio -- sin esto, el navegador podría servir
+// una copia vieja de los .json desde su propia caché sin ni siquiera
+// preguntarle al servidor, y la página se vería "congelada" hasta 10 min
+// aunque el ciclo en GitHub Actions ya haya publicado algo nuevo.
+function bustCache(url) {
+  return STATIC ? url + "?t=" + Date.now() : url;
+}
+
 async function poll() {
   try {
-    const r = await fetch(API.state);
+    const r = await fetch(bustCache(API.state), STATIC ? {cache: "no-store"} : {});
     const state = await r.json();
     render(state);
     renderStaticFreshness(state);
@@ -1602,14 +1611,16 @@ async function poll() {
 
 async function pollHistory() {
   try {
-    const r = await fetch(API.score, (!STATIC && scoreHistoryEtag) ? {headers: {"If-None-Match": scoreHistoryEtag}} : {});
+    const r = await fetch(bustCache(API.score),
+      STATIC ? {cache: "no-store"} : (scoreHistoryEtag ? {headers: {"If-None-Match": scoreHistoryEtag}} : {}));
     if (r.status === 200) {
       scoreHistoryEtag = r.headers.get("ETag");
       latestScoreHistory = await r.json();
     }
   } catch (e) { /* se reintenta en el próximo poll */ }
   try {
-    const r = await fetch(API.ohlc, (!STATIC && ohlcHistoryEtag) ? {headers: {"If-None-Match": ohlcHistoryEtag}} : {});
+    const r = await fetch(bustCache(API.ohlc),
+      STATIC ? {cache: "no-store"} : (ohlcHistoryEtag ? {headers: {"If-None-Match": ohlcHistoryEtag}} : {}));
     if (r.status === 200) {
       ohlcHistoryEtag = r.headers.get("ETag");
       latestOhlcHistory = await r.json();
