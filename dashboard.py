@@ -208,8 +208,19 @@ CSV_LOCK = threading.Lock()
 _csv_mtimes = {}
 
 
+def _utc_now_naive():
+    """'Ahora' en UTC pero como datetime naive (sin tzinfo) -- comparable
+    directo contra los timestamps parseados de los CSV (también naive, ver
+    now_iso()) sin mezclar aware/naive. Explícito en vez de depender de que
+    el reloj del sistema operativo que corre esto ya esté en UTC (cierto hoy
+    en GitHub Actions, pero no si algún día vuelve a correr localmente en
+    una laptop con otro huso horario -- ver banner de frescura en
+    dashboard.html, que asume que estos timestamps SON UTC)."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 def now_iso():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return _utc_now_naive().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def log(msg):
@@ -242,7 +253,7 @@ def _purge_old_rows(path, timestamp_field="timestamp", max_age_days=HISTORY_RETE
     """
     if not os.path.exists(path):
         return
-    cutoff = datetime.now() - timedelta(days=max_age_days)
+    cutoff = _utc_now_naive() - timedelta(days=max_age_days)
     try:
         with open(path, "r", encoding="utf-8", newline="") as f:
             reader = csv.DictReader(f)
@@ -1206,7 +1217,7 @@ def worker():
                 STATE["wave_running"] = False
         interval = decide_interval()
         with STATE_LOCK:
-            STATE["next_wave"] = (datetime.now() + timedelta(seconds=interval)).strftime("%Y-%m-%d %H:%M:%S")
+            STATE["next_wave"] = (_utc_now_naive() + timedelta(seconds=interval)).strftime("%Y-%m-%d %H:%M:%S")
         log(f"Próximo ciclo en {interval // 60} min")
         REFRESH_EVENT.wait(timeout=interval)
         REFRESH_EVENT.clear()
