@@ -30,6 +30,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # "Re-run jobs" sobre una corrida vieja reusa el commit CON EL QUE SE
+      # DISPARÓ esa vez, no la punta actual de main -- si para entonces main
+      # ya avanzó (otro ciclo, o un sync_to_repo.py manual), este ciclo
+      # analizaría con data/*.csv desactualizado (pending orders viejos,
+      # historial viejo) y el commit de vuelta chocaría con lo que el ciclo
+      # real ya guardó. Mejor fallar acá con un mensaje claro que dejar que
+      # llegue al conflicto de git al final, o peor, decidir con datos viejos.
+      # Para forzar una corrida fuera de horario: "Run workflow", NO "Re-run".
+      - name: Verificar que este checkout es la punta actual de main
+        run: |
+          git fetch origin main
+          local="$(git rev-parse HEAD)"
+          remote="$(git rev-parse origin/main)"
+          if [ "$local" != "$remote" ]; then
+            echo "::error::Este checkout ($local) no es la punta actual de main ($remote)."
+            echo "::error::Esto pasa al usar 'Re-run jobs' sobre una corrida vieja. Para forzar un ciclo, usa el botón 'Run workflow' (no 'Re-run')."
+            exit 1
+          fi
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
