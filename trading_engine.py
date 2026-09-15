@@ -411,6 +411,25 @@ class TradingEngine:
                                   # del score y del detector de rango existente (detect_ranging_market,
                                   # que combina ADX+Bollinger+pendiente de EMAs) -- este es un segundo
                                   # control, más simple y directo, no un reemplazo de aquel.
+    # RSI diario máximo ("a favor" de la dirección: el RSI tal cual para LONG,
+    # 100-RSI para SHORT) para permitir CUALQUIER señal, sin importar el
+    # score -- misma forma que MIN_ADX_TO_TRADE, aplicado en generate_signal().
+    # Antes de este filtro, el RSI solo sumaba HASTA 20 puntos (score_direction)
+    # y los otros tres bloques (tendencia 25 + EMAs 15 + MACD 15 = 55 >=
+    # MIN_SCORE) ya alcanzaban el mínimo sin él -- una señal podía validarse
+    # con el RSI en 69 y CERO puntos de esa categoría. Medido en el informe
+    # "Entradas tardías" (2026-09-14): el 58% de los 69 trades ejecutados del
+    # backtest (6 pares, 2024-04/2026-07) entró con RSI a favor > 60, con
+    # 30.0% de aciertos y -0.08R de media -- contra 55.2% y +0.41R por debajo
+    # de 60. Con esta puerta: 69->47 trades, +$54->+$141 netos, y el resultado
+    # se sostiene partido en dos mitades (+$74/+$68 vs +$39/+$15 sin puerta),
+    # a diferencia del score que sin esto se apaga con el tiempo. El valor 60
+    # no es un óptimo puntual: toda la meseta 55-62 (cruzada con MIN_SCORE
+    # 45-55) da entre +$141 y +$170 -- ver informe para la rejilla completa.
+    # Activo solo donde PairConfig.rsi_gate_enabled es True (ver esa config):
+    # medido también sobre el US500 (n=12, único quinto sistema) el efecto es
+    # neutro -- muestra insuficiente para decidir, se deja sin activar ahí.
+    MAX_RSI_TO_TRADE = 60
 
     # Umbrales del detector de mercado lateral (ver detect_ranging_market).
     # Estaban escritos como literales dentro de la función; se sacan aquí con
@@ -1727,6 +1746,22 @@ class TradingEngine:
             reasons_b.append(nota)
             reasons_s.append(nota)
 
+        # Filtro binario de RSI (ver plan/informe "Entradas tardías", 2026-09-14
+        # / comentario de MAX_RSI_TO_TRADE): con el precio ya extendido en la
+        # dirección de la señal, NINGUNA operación de ESE lado se genera aunque
+        # el score alcance el mínimo. Por dirección, a diferencia del ADX --
+        # un RSI alto no invalida un SHORT, solo un LONG, y viceversa. Se mide
+        # en RSI "a favor": el propio RSI para LONG, 100-RSI para SHORT (misma
+        # convención que score_direction al puntuar RSI para cada lado).
+        block_long_rsi  = self.cfg.rsi_gate_enabled and daily["rsi"] > self.MAX_RSI_TO_TRADE
+        block_short_rsi = self.cfg.rsi_gate_enabled and daily["rsi"] < (100 - self.MAX_RSI_TO_TRADE)
+        if block_long_rsi:
+            reasons_b.append(f"⚠ RSI diario {daily['rsi']:.1f} > {self.MAX_RSI_TO_TRADE} — precio ya "
+                              f"extendido al alza, compra bloqueada aunque el score alcance el mínimo")
+        if block_short_rsi:
+            reasons_s.append(f"⚠ RSI diario {daily['rsi']:.1f} < {100 - self.MAX_RSI_TO_TRADE} — precio ya "
+                              f"extendido a la baja, venta bloqueada aunque el score alcance el mínimo")
+
         # Puerta del lado corto (solo instrumentos con no_short_above_ema200):
         # la renta variable tiene deriva estructural alcista, así que vender
         # con el precio SOBRE la EMA200 diaria es apostar contra la tendencia
@@ -1744,7 +1779,7 @@ class TradingEngine:
         # Stop Loss dinámico: ATR × multiplicador, mínimo MIN_PIPS_SL pips
         sl_distance = max(atr * self.ATR_MULTIPLIER, self.MIN_PIPS_SL * self.PIP_VALUE)
 
-        if score_b >= self.MIN_SCORE and score_b > score_s and not weak_trend:
+        if score_b >= self.MIN_SCORE and score_b > score_s and not weak_trend and not block_long_rsi:
             pb    = self.calc_pullback_entry("LONG", daily)
             entry = pb["entry"]
             sl    = round(entry - sl_distance, 5)
@@ -1784,7 +1819,7 @@ class TradingEngine:
                 **pvm,
             }
 
-        elif score_s >= self.MIN_SCORE and score_s > score_b and not weak_trend and not block_short:
+        elif score_s >= self.MIN_SCORE and score_s > score_b and not weak_trend and not block_short and not block_short_rsi:
             pb    = self.calc_pullback_entry("SHORT", daily)
             entry = pb["entry"]
             sl    = round(entry + sl_distance, 5)
@@ -1820,12 +1855,14 @@ class TradingEngine:
             }
 
         return {
-            "signal":      "NEUTRAL",
-            "valid":       False,
-            "score_b":     score_b,
-            "score_s":     score_s,
-            "weak_trend":  weak_trend,
-            "block_short": block_short,
+            "signal":          "NEUTRAL",
+            "valid":           False,
+            "score_b":         score_b,
+            "score_s":         score_s,
+            "weak_trend":      weak_trend,
+            "block_short":     block_short,
+            "block_long_rsi":  block_long_rsi,
+            "block_short_rsi": block_short_rsi,
         }
 
     # ══════════════════════════════════════════════════════════════
