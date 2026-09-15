@@ -980,6 +980,8 @@ def build_pair_state(name, mod, dxy, news_events):
         st["weak_trend"] = trade.get("weak_trend", False)
         st["zero_lots"] = trade.get("zero_lots", False)
         st["block_short"] = trade.get("block_short", False)
+        st["block_long_rsi"] = trade.get("block_long_rsi", False)
+        st["block_short_rsi"] = trade.get("block_short_rsi", False)
 
     return st
 
