@@ -453,7 +453,12 @@ function recClass(rec) {
   return "neut";
 }
 
-function parseTs(s) { return s ? new Date(s.replace(" ", "T")) : null; }
+// state.last_wave / state.next_wave los escribe dashboard.py en UTC (ver
+// now_iso() -- explícito, no depende del huso horario del host que corra el
+// motor). Sin la "Z", el navegador interpretaría "YYYY-MM-DDTHH:MM:SS" como
+// SU propia hora local (así lo exige el spec de Date para ese formato) y el
+// conteo/banner de frescura saldría desfasado por la diferencia de huso.
+function parseTs(s) { return s ? new Date(s.replace(" ", "T") + "Z") : null; }
 
 // ── Beep (reemplaza los \a de la consola) ──
 function beep(times) {
@@ -1570,12 +1575,14 @@ function renderStaticFreshness(state) {
   if (!STATIC) { el.style.display = "none"; return; }
   const lastWave = parseTs(state.last_wave);
   const ageMin = lastWave ? Math.round((new Date() - lastWave) / 60000) : null;
-  const cuando = state.last_wave || "desconocido";
+  // Mostrar en la hora local de quien mira el celular, no el string UTC
+  // crudo que escribió el runner de GitHub Actions -- ver parseTs().
+  const cuando = lastWave ? lastWave.toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"}) : "desconocida";
   if (ageMin === null) {
     el.textContent = "📸 Instantánea estática — hora del último ciclo desconocida.";
   } else if (ageMin > 45) {
     el.textContent = "📸 Instantánea de las " + cuando + " (hace " + ageMin + " min) — "
-      + "más vieja de lo normal, puede que la laptop esté apagada o el publicador falló.";
+      + "más vieja de lo normal, el ciclo automático de GitHub Actions puede haber fallado (revisar la pestaña Actions del repo).";
   } else {
     el.textContent = "📸 Instantánea de las " + cuando + " (hace " + ageMin + " min) — solo lectura, sin botones.";
   }
