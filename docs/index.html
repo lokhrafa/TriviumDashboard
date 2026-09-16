@@ -957,21 +957,19 @@ function renderCard(p, history, newsWindowHours, ohlcHist) {
   }
   card.appendChild(tfrow);
 
-  if (p.mode === "SIN SETUP" && p.weak_trend) {
-    card.appendChild(el("div", "alert warn",
-      "⚠️ ADX diario débil (ver ADX arriba) — señales bloqueadas aunque el score alcance el mínimo, no hay tendencia suficiente para operar"));
-  }
-  if (p.mode === "SIN SETUP" && p.zero_lots) {
-    card.appendChild(el("div", "alert warn",
-      "⚠️ Hubo una señal técnica pero el Stop Loss (ATR alto) es tan amplio que el lote calculado redondea a 0.00 — bloqueada, no operable con el capital actual"));
-  }
-  if (p.mode === "SIN SETUP" && p.block_long_rsi) {
-    card.appendChild(el("div", "alert warn",
-      "⚠️ RSI extendido al alza (ver RSI arriba) — compra bloqueada aunque el score alcance el mínimo, el precio ya subió demasiado para entrar"));
-  }
-  if (p.mode === "SIN SETUP" && p.block_short_rsi) {
-    card.appendChild(el("div", "alert warn",
-      "⚠️ RSI extendido a la baja (ver RSI arriba) — venta bloqueada aunque el score alcance el mínimo, el precio ya bajó demasiado para entrar"));
+  // Los mensajes de bloqueo duro (ADX débil, RSI extendido) ya vienen armados
+  // desde el servidor -- ahí es donde se sabe si el score de ese lado llegaba
+  // al mínimo o no, así que el texto nunca afirma "aunque el score alcance el
+  // mínimo" cuando en realidad tampoco llegaba (ver dashboard.py, caso real
+  // 2026-09-15: NZD/USD nunca pasó de 46/75 en venta, con o sin la puerta).
+  if (p.mode === "SIN SETUP") {
+    if (p.weak_trend_msg) card.appendChild(el("div", "alert warn", p.weak_trend_msg));
+    if (p.zero_lots) {
+      card.appendChild(el("div", "alert warn",
+        "⚠️ Hubo una señal técnica pero el Stop Loss (ATR alto) es tan amplio que el lote calculado redondea a 0.00 — bloqueada, no operable con el capital actual"));
+    }
+    if (p.block_long_rsi_msg) card.appendChild(el("div", "alert warn", p.block_long_rsi_msg));
+    if (p.block_short_rsi_msg) card.appendChild(el("div", "alert warn", p.block_short_rsi_msg));
   }
 
   card.appendChild(sparkline(history));
