@@ -1748,9 +1748,17 @@ class TradingEngine:
         # "valid" queda forzado a False más abajo.
         weak_trend = daily["adx"] < self.MIN_ADX_TO_TRADE
         if weak_trend:
-            nota = f"⚠ ADX diario {daily['adx']:.1f} < {self.MIN_ADX_TO_TRADE} — tendencia insuficiente, señal bloqueada aunque el score alcance el mínimo"
-            reasons_b.append(nota)
-            reasons_s.append(nota)
+            # El texto solo puede decir "aunque el score alcance el mínimo"
+            # cuando eso es CIERTO -- si el score de ese lado ni siquiera
+            # llega, decirlo igual sugiere una señal perdida que nunca
+            # existió (encontrado 2026-09-15 con el usuario sobre un caso
+            # real de NZD/USD: el score de venta nunca pasó de 46/75 durante
+            # toda la caída, con o sin este bloqueo).
+            base = f"⚠ ADX diario {daily['adx']:.1f} < {self.MIN_ADX_TO_TRADE} — tendencia insuficiente"
+            reasons_b.append(f"{base}, señal bloqueada aunque el score alcance el mínimo" if score_b >= self.MIN_SCORE
+                              else f"{base} (el score tampoco llega: {score_b}/{self.MAX_SCORE})")
+            reasons_s.append(f"{base}, señal bloqueada aunque el score alcance el mínimo" if score_s >= self.MIN_SCORE
+                              else f"{base} (el score tampoco llega: {score_s}/{self.MAX_SCORE})")
 
         # Filtro binario de RSI (ver plan/informe "Entradas tardías", 2026-09-14
         # / comentario de MAX_RSI_TO_TRADE): con el precio ya extendido en la
@@ -1761,12 +1769,18 @@ class TradingEngine:
         # convención que score_direction al puntuar RSI para cada lado).
         block_long_rsi  = self.cfg.rsi_gate_enabled and daily["rsi"] > self.MAX_RSI_TO_TRADE
         block_short_rsi = self.cfg.rsi_gate_enabled and daily["rsi"] < (100 - self.MAX_RSI_TO_TRADE)
+        # Mismo criterio que arriba (ADX): solo afirmar "aunque el score
+        # alcance el mínimo" cuando de verdad lo alcanza -- si no, decir en
+        # cuánto se queda corto en vez de sugerir una señal perdida que en
+        # realidad tampoco habría validado por score.
         if block_long_rsi:
-            reasons_b.append(f"⚠ RSI diario {daily['rsi']:.1f} > {self.MAX_RSI_TO_TRADE} — precio ya "
-                              f"extendido al alza, compra bloqueada aunque el score alcance el mínimo")
+            base = f"⚠ RSI diario {daily['rsi']:.1f} > {self.MAX_RSI_TO_TRADE} — precio ya extendido al alza"
+            reasons_b.append(f"{base}, compra bloqueada aunque el score alcance el mínimo" if score_b >= self.MIN_SCORE
+                              else f"{base} (el score tampoco llega: {score_b}/{self.MAX_SCORE})")
         if block_short_rsi:
-            reasons_s.append(f"⚠ RSI diario {daily['rsi']:.1f} < {100 - self.MAX_RSI_TO_TRADE} — precio ya "
-                              f"extendido a la baja, venta bloqueada aunque el score alcance el mínimo")
+            base = f"⚠ RSI diario {daily['rsi']:.1f} < {100 - self.MAX_RSI_TO_TRADE} — precio ya extendido a la baja"
+            reasons_s.append(f"{base}, venta bloqueada aunque el score alcance el mínimo" if score_s >= self.MIN_SCORE
+                              else f"{base} (el score tampoco llega: {score_s}/{self.MAX_SCORE})")
 
         # Puerta del lado corto (solo instrumentos con no_short_above_ema200):
         # la renta variable tiene deriva estructural alcista, así que vender
