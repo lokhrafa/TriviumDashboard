@@ -977,11 +977,48 @@ def build_pair_state(name, mod, dxy, news_events):
         st["ranging_reasons"] = trade.get("ranging_reasons", [])
     else:
         st["mode"] = "SIN SETUP"
-        st["weak_trend"] = trade.get("weak_trend", False)
         st["zero_lots"] = trade.get("zero_lots", False)
+        # Mensajes de los bloqueos duros (ADX débil, RSI extendido), armados
+        # AQUÍ en vez de con un texto fijo en dashboard.html -- "bloqueada
+        # aunque el score alcance el mínimo" es una afirmación que puede ser
+        # FALSA (el score de ese lado puede no llegar de todos modos), y con
+        # el texto fijo no había forma de saberlo sin leer el código. Caso
+        # real que lo mostró (2026-09-15, NZD/USD): el score de venta nunca
+        # pasó de 46/75 durante toda la caída, con o sin la puerta de RSI --
+        # el cartel viejo igual decía "aunque el score alcance el mínimo".
+        score_b, score_s = trade.get("score_b", 0), trade.get("score_s", 0)
+        b_ok, s_ok = score_b >= mod.MIN_SCORE, score_s >= mod.MIN_SCORE
+
+        # ADX débil bloquea las DOS direcciones a la vez -- un solo mensaje,
+        # pero su contenido depende de si el score de cada lado llegaba o no
+        # (4 casos posibles) para no afirmar "aunque el score alcance el
+        # mínimo" cuando en realidad tampoco llegaba de ese lado.
+        st["weak_trend_msg"] = None
+        if trade.get("weak_trend", False):
+            base = f"⚠️ ADX diario {daily['adx']:.1f} < {mod.MIN_ADX_TO_TRADE} — tendencia insuficiente"
+            if b_ok and s_ok:
+                st["weak_trend_msg"] = f"{base}, señal bloqueada aunque el score alcance el mínimo en las dos direcciones"
+            elif b_ok:
+                st["weak_trend_msg"] = f"{base}, la compra bloqueada aunque el score alcance el mínimo (la venta tampoco llegaba: {score_s}/{mod.MAX_SCORE})"
+            elif s_ok:
+                st["weak_trend_msg"] = f"{base}, la venta bloqueada aunque el score alcance el mínimo (la compra tampoco llegaba: {score_b}/{mod.MAX_SCORE})"
+            else:
+                st["weak_trend_msg"] = f"{base} en ninguna dirección (compra {score_b}/{mod.MAX_SCORE}, venta {score_s}/{mod.MAX_SCORE})"
+
+        # RSI extendido bloquea UNA sola dirección (rsi>60 y rsi<40 nunca son
+        # ciertos a la vez) -- mismo criterio, mensaje distinto según si el
+        # score de ESE lado llegaba solo o no.
         st["block_short"] = trade.get("block_short", False)
-        st["block_long_rsi"] = trade.get("block_long_rsi", False)
-        st["block_short_rsi"] = trade.get("block_short_rsi", False)
+        st["block_long_rsi_msg"] = None
+        if trade.get("block_long_rsi", False):
+            base = f"⚠️ RSI diario {daily['rsi']:.1f} > {mod.MAX_RSI_TO_TRADE} — precio ya extendido al alza"
+            st["block_long_rsi_msg"] = (f"{base}, compra bloqueada aunque el score alcance el mínimo" if b_ok
+                                         else f"{base} — y el score de compra tampoco llega ({score_b}/{mod.MAX_SCORE})")
+        st["block_short_rsi_msg"] = None
+        if trade.get("block_short_rsi", False):
+            base = f"⚠️ RSI diario {daily['rsi']:.1f} < {100 - mod.MAX_RSI_TO_TRADE} — precio ya extendido a la baja"
+            st["block_short_rsi_msg"] = (f"{base}, venta bloqueada aunque el score alcance el mínimo" if s_ok
+                                          else f"{base} — y el score de venta tampoco llega ({score_s}/{mod.MAX_SCORE})")
 
     return st
 
