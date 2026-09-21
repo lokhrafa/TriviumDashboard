@@ -458,7 +458,18 @@ function recClass(rec) {
 // motor). Sin la "Z", el navegador interpretaría "YYYY-MM-DDTHH:MM:SS" como
 // SU propia hora local (así lo exige el spec de Date para ese formato) y el
 // conteo/banner de frescura saldría desfasado por la diferencia de huso.
-function parseTs(s) { return s ? new Date(s.replace(" ", "T") + "Z") : null; }
+function parseTs(s) {
+  if (!s) return null;
+  const value = String(s);
+  return new Date(value.endsWith("Z") ? value : value.replace(" ", "T") + "Z");
+}
+
+function formatLocalTimestamp(s) {
+  const date = parseTs(s);
+  return date && !Number.isNaN(date.getTime())
+    ? date.toLocaleString([], {dateStyle: "short", timeStyle: "medium"})
+    : (s || "desconocida");
+}
 
 // ── Beep (reemplaza los \a de la consola) ──
 function beep(times) {
@@ -925,7 +936,7 @@ function renderCard(p, history, newsWindowHours, ohlcHist) {
 
   if (!p.ok) {
     card.appendChild(el("div", "alert warn", p.error || "Sin datos todavía"));
-    if (p.updated) card.appendChild(el("div", "note", "Último intento: " + p.updated));
+    if (p.updated) card.appendChild(el("div", "note", "Último intento: " + formatLocalTimestamp(p.updated)));
     return card;
   }
 
@@ -1206,7 +1217,7 @@ function renderCard(p, history, newsWindowHours, ohlcHist) {
     card.appendChild(d);
   }
 
-  card.appendChild(el("div", "note", "Capital: $" + p.capital.toLocaleString("en-US") + " · actualizado " + p.updated));
+  card.appendChild(el("div", "note", "Capital: $" + p.capital.toLocaleString("en-US") + " · actualizado " + formatLocalTimestamp(p.updated)));
   return card;
 }
 
@@ -1551,8 +1562,8 @@ function render(state) {
     });
   }
 
-  $("foot-status").textContent = "Última actualización de datos: " + (state.last_wave || "todavía ninguna")
-    + " · Dashboard iniciado: " + (state.started || "—");
+  $("foot-status").textContent = "Última actualización de datos: " + formatLocalTimestamp(state.last_wave)
+    + " · Dashboard iniciado: " + formatLocalTimestamp(state.started);
 }
 
 // ── Poll + countdown ──
