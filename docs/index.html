@@ -999,6 +999,7 @@ function renderCard(p, history, newsWindowHours, ohlcHist) {
       + (t.nivel_max ? " · llegó a " + t.nivel_max : "");
     const maeStr = t.mae_pips + " " + uni + " (" + t.mae_r + "R)";
     card.appendChild(kvGrid([
+      ["Estrategia", t.estrategia === "REBOTE" ? "REBOTE" : "TENDENCIA"],
       ["Dirección", t.direccion + " · " + t.lotes + " lotes · día " + t.dias],
       ["P&L flotante", (t.pnl_pips >= 0 ? "+" : "") + t.pnl_pips + " " + uni + " (" + fmtUsd(t.pnl_usd) + ")", pnlCls],
       ["R actual", (t.r_multiple >= 0 ? "+" : "") + t.r_multiple + "R", pnlCls],
@@ -1063,6 +1064,7 @@ function renderCard(p, history, newsWindowHours, ohlcHist) {
     const o = p.order;
     card.appendChild(levelBar(o, p.price, dec));
     card.appendChild(kvGrid([
+      ["Estrategia", o.estrategia === "REBOTE" ? "REBOTE" : "TENDENCIA"],
       ["Orden", o.direccion + " " + (o.tipo_entrada === "LIMITE" ? "LÍMITE" : "MERCADO") + " · " + o.lotes + " lotes"],
       ["Registrada", o.fecha + " " + o.hora + " (día " + o.dias + ")"],
       ["Falta al precio", o.dist_pips + " " + uni],
@@ -1106,6 +1108,7 @@ function renderCard(p, history, newsWindowHours, ohlcHist) {
         + " (" + (s.risk_usd_real < s.risk_usd ? "-" : "+") + s.risk_gap_pct + "%)"
       : s.lots + " lotes · " + fmtUsd(-s.risk_usd).replace("−", "") + " en riesgo";
     card.appendChild(kvGrid([
+      ["Estrategia", s.estrategia === "REBOTE" ? "REBOTE" : "TENDENCIA"],
       ["Señal", s.signal + " (" + s.entry_type + ") · score " + s.score + "/" + DASH_MAX_SCORE],
       ["Entrada", px(s.entry, dec) + (s.entry_type === "LIMITE" ? " (esperar " + Math.round(s.retrace_pips) + " " + uni + " de retroceso)" : "")],
       ["Lotes / riesgo", riskRow, s.risk_gap_pct >= 15 ? "neg" : null],
