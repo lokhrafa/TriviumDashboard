@@ -663,12 +663,12 @@ function reboundBreakdownBox(p) {
   const best = a.best === "LONG" ? a.long : a.short;
   const bestLabel = a.best === "LONG" ? "Compra" : "Venta";
   const d = detailsBox(p.name + ":reboundbreak",
-    "¿Cerca de un rebote? — " + bestLabel + " " + best.score + "/" + best.max);
+    "¿Cerca de un rebote? — " + bestLabel + " " + best.score + "/" + best.max + " condiciones");
   d.appendChild(el("div", "note",
-    "Se necesitan 3/3: RSI extremo o recuperandose + rechazo de Bollinger + giro del Estocastico 4H. "
+    "Cada condicion vale 1 punto. Se necesitan 3/3: RSI extremo o recuperandose + rechazo de Bollinger + giro del Estocastico 4H. "
     + (best.ready ? "Setup completo; falta que supere los filtros generales." : "Todavia faltan " + (best.max - best.score) + " condicion(es) en la direccion mas cercana.")));
   [ ["Compra", a.long], ["Venta", a.short] ].forEach(([label, side]) => {
-    d.appendChild(el("div", "score-break-h", label + " " + side.score + "/" + side.max));
+    d.appendChild(el("div", "score-break-h", label + " " + side.score + "/" + side.max + " condiciones"));
     d.appendChild(scoreReasonList(side.reasons));
   });
   return d;
