@@ -657,6 +657,23 @@ function scoreBreakdownBox(p) {
   return d;
 }
 
+function reboundBreakdownBox(p) {
+  const a = p.rebound_analysis;
+  if (!a || !a.long || !a.short) return null;
+  const best = a.best === "LONG" ? a.long : a.short;
+  const bestLabel = a.best === "LONG" ? "Compra" : "Venta";
+  const d = detailsBox(p.name + ":reboundbreak",
+    "¿Cerca de un rebote? — " + bestLabel + " " + best.score + "/" + best.max);
+  d.appendChild(el("div", "note",
+    "Se necesitan 3/3: RSI extremo o recuperandose + rechazo de Bollinger + giro del Estocastico 4H. "
+    + (best.ready ? "Setup completo; falta que supere los filtros generales." : "Todavia faltan " + (best.max - best.score) + " condicion(es) en la direccion mas cercana.")));
+  [ ["Compra", a.long], ["Venta", a.short] ].forEach(([label, side]) => {
+    d.appendChild(el("div", "score-break-h", label + " " + side.score + "/" + side.max));
+    d.appendChild(scoreReasonList(side.reasons));
+  });
+  return d;
+}
+
 // ── Sparkline del historial de score (2 series + crosshair) ──
 function sparkline(history) {
   const wrap = el("div", "spark-wrap");
@@ -948,6 +965,8 @@ function renderCard(p, history, newsWindowHours, ohlcHist) {
   if ((p.score_reasons_b && p.score_reasons_b.length) || (p.score_reasons_s && p.score_reasons_s.length)) {
     card.appendChild(scoreBreakdownBox(p));
   }
+  const reboundBox = reboundBreakdownBox(p);
+  if (reboundBox) card.appendChild(reboundBox);
 
   const tfrow = el("div", "tfrow");
   (p.tf || []).forEach(tf => {
