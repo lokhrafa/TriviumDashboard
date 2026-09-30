@@ -1013,6 +1013,8 @@ function renderCard(p, history, newsWindowHours, ohlcHist) {
   if (p.mode === "ACTIVA" && p.trade) {
     const t = p.trade;
     card.appendChild(levelBar(t, p.price, dec));
+    if (p.rebound_exit) card.appendChild(el("div", "alert warn",
+      "⚠️ Señal tendencial contraria: revisa la salida del rebote. La posición sigue ACTIVA hasta que confirmes el cierre en el bróker."));
     const pnlCls = t.pnl_pips >= 0 ? "pos" : "neg";
     const mfeStr = (t.mfe_pips >= 0 ? "+" : "") + t.mfe_pips + " " + uni + " (" + (t.mfe_r >= 0 ? "+" : "") + t.mfe_r + "R)"
       + (t.nivel_max ? " · llegó a " + t.nivel_max : "");
