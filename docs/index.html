@@ -674,6 +674,23 @@ function reboundBreakdownBox(p) {
   return d;
 }
 
+function pullbackBreakdownBox(p) {
+  const a = p.pullback_analysis;
+  if (!a || !a.long || !a.short) return null;
+  const best = a.best === "LONG" ? a.long : a.short;
+  const bestLabel = a.best === "LONG" ? "Compra" : "Venta";
+  const d = detailsBox(p.name + ":pullbackbreak",
+    "¿Pullback confirmado? — " + bestLabel + " " + best.score + "/" + best.max + " condiciones");
+  d.appendChild(el("div", "note",
+    "Se requieren 3/3: toque de EMA20 diaria, cierre de vuelta al lado de la tendencia y recomendación 4H alineada. "
+    + (best.ready ? "Pullback confirmado; además debe pasar los filtros tendenciales." : "Todavía faltan " + (best.max - best.score) + " condición(es) en la dirección más cercana.")));
+  [["Compra", a.long], ["Venta", a.short]].forEach(([label, side]) => {
+    d.appendChild(el("div", "score-break-h", label + " " + side.score + "/" + side.max + " condiciones"));
+    d.appendChild(scoreReasonList(side.reasons));
+  });
+  return d;
+}
+
 // ── Sparkline del historial de score (2 series + crosshair) ──
 function sparkline(history) {
   const wrap = el("div", "spark-wrap");
@@ -965,6 +982,8 @@ function renderCard(p, history, newsWindowHours, ohlcHist) {
   if ((p.score_reasons_b && p.score_reasons_b.length) || (p.score_reasons_s && p.score_reasons_s.length)) {
     card.appendChild(scoreBreakdownBox(p));
   }
+  const pullbackBox = pullbackBreakdownBox(p);
+  if (pullbackBox) card.appendChild(pullbackBox);
   const reboundBox = reboundBreakdownBox(p);
   if (reboundBox) card.appendChild(reboundBox);
 
@@ -1020,7 +1039,7 @@ function renderCard(p, history, newsWindowHours, ohlcHist) {
       + (t.nivel_max ? " · llegó a " + t.nivel_max : "");
     const maeStr = t.mae_pips + " " + uni + " (" + t.mae_r + "R)";
     card.appendChild(kvGrid([
-      ["Estrategia", t.estrategia === "REBOTE" ? "REBOTE" : "TENDENCIA"],
+      ["Estrategia", t.estrategia || "TENDENCIA"],
       ["Dirección", t.direccion + " · " + t.lotes + " lotes · día " + t.dias],
       ["P&L flotante", (t.pnl_pips >= 0 ? "+" : "") + t.pnl_pips + " " + uni + " (" + fmtUsd(t.pnl_usd) + ")", pnlCls],
       ["R actual", (t.r_multiple >= 0 ? "+" : "") + t.r_multiple + "R", pnlCls],
@@ -1029,6 +1048,14 @@ function renderCard(p, history, newsWindowHours, ohlcHist) {
       ["Al SL / al TP", t.dist_sl + " / " + t.dist_tp + " " + uni],
       ["Riesgo real en esta posición", fmtUsd(-t.riesgo_usd_real).replace("−", "")],
     ]));
+    if (p.pullback_context && p.pullback_context.estado === "ALINEADA") {
+      card.appendChild(el("div", "alert good",
+        "✅ La tendencia confirma " + p.pullback_context.signal + " a favor del pullback activo. Se mantiene la misma operación, sin abrir otra ni modificar sus niveles."));
+    } else if (p.pullback_context && p.pullback_context.estado === "CONTRARIA") {
+      card.appendChild(el("div", "alert warn",
+        "⚠️ Señal tendencial " + p.pullback_context.signal + " contraria (" + p.pullback_context.score
+        + "/" + DASH_MAX_SCORE + "). El trade sigue activo: no se cierra automáticamente; revisa la operación y conserva la gestión SL/TP vigente."));
+    }
     const tieneParcial = t.pips_tp1_parcial !== null && t.pips_tp1_parcial !== undefined;
     if (tieneParcial) {
       card.appendChild(el("div", "alert good",
@@ -1085,7 +1112,7 @@ function renderCard(p, history, newsWindowHours, ohlcHist) {
     const o = p.order;
     card.appendChild(levelBar(o, p.price, dec));
     card.appendChild(kvGrid([
-      ["Estrategia", o.estrategia === "REBOTE" ? "REBOTE" : "TENDENCIA"],
+      ["Estrategia", o.estrategia || "TENDENCIA"],
       ["Orden", o.direccion + " " + (o.tipo_entrada === "LIMITE" ? "LÍMITE" : "MERCADO") + " · " + o.lotes + " lotes"],
       ["Registrada", o.fecha + " " + o.hora + " (día " + o.dias + ")"],
       ["Falta al precio", o.dist_pips + " " + uni],
@@ -1129,7 +1156,7 @@ function renderCard(p, history, newsWindowHours, ohlcHist) {
         + " (" + (s.risk_usd_real < s.risk_usd ? "-" : "+") + s.risk_gap_pct + "%)"
       : s.lots + " lotes · " + fmtUsd(-s.risk_usd).replace("−", "") + " en riesgo";
     card.appendChild(kvGrid([
-      ["Estrategia", s.estrategia === "REBOTE" ? "REBOTE" : "TENDENCIA"],
+      ["Estrategia", s.estrategia || "TENDENCIA"],
       ["Señal", s.signal + " (" + s.entry_type + ") · score " + s.score + "/" + DASH_MAX_SCORE],
       ["Entrada", px(s.entry, dec) + (s.entry_type === "LIMITE" ? " (esperar " + Math.round(s.retrace_pips) + " " + uni + " de retroceso)" : "")],
       ["Lotes / riesgo", riskRow, s.risk_gap_pct >= 15 ? "neg" : null],
