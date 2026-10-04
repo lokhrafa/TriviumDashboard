@@ -1681,17 +1681,27 @@ setInterval(() => {
 $("btn-refresh").addEventListener("click", async () => {
   const btn = $("btn-refresh");
   btn.disabled = true;
+  const reset = (delay) => setTimeout(() => {
+    btn.textContent = "Actualizar ahora";
+    btn.removeAttribute("title");
+    btn.disabled = false;
+  }, delay);
   try {
     const r = await fetch("/api/refresh", {method: "POST", headers: {"X-Requested-With": "tvm-dashboard-ui"}});
     const j = await r.json();
-    if (!j.ok && j.espera) {
+    if (r.status === 429 && j.espera) {
       btn.textContent = "Espera " + j.espera + "s";
-      setTimeout(() => { btn.textContent = "Actualizar ahora"; btn.disabled = false; }, 3000);
+      reset(j.espera * 1000);
       return;
     }
-  } catch (e) { /* ignorar */ }
-  btn.textContent = "Actualizando…";
-  setTimeout(() => { btn.textContent = "Actualizar ahora"; btn.disabled = false; }, 8000);
+    if (!r.ok || !j.ok) throw new Error(j.error || "No se pudo iniciar la actualización.");
+    btn.textContent = j.ya_actualizando ? "Ya actualizando…" : "Actualizando…";
+    reset(8000);
+  } catch (e) {
+    btn.textContent = "Error al actualizar";
+    btn.title = e.message || "No se pudo contactar al dashboard.";
+    reset(5000);
+  }
 });
 
 setupNotifyButton();
