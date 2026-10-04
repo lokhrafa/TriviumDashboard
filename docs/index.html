@@ -682,9 +682,7 @@ function pullbackBreakdownBox(p) {
   const d = detailsBox(p.name + ":pullbackbreak",
     "¿Pullback confirmado? — " + bestLabel + " " + best.score + "/" + best.max + " condiciones");
   d.appendChild(el("div", "note",
-    "Se requieren " + best.max + "/" + best.max
-    + ": toque de EMA20 diaria, cierre de vuelta al lado de la tendencia, recomendación 4H alineada y score direccional < "
-    + DASH_MIN_SCORE + ". "
+    "Se requieren 3/3: toque de EMA20 diaria, cierre de vuelta al lado de la tendencia y recomendación 4H alineada. "
     + (best.ready ? "Pullback confirmado; además debe pasar los filtros tendenciales." : "Todavía faltan " + (best.max - best.score) + " condición(es) en la dirección más cercana.")));
   [["Compra", a.long], ["Venta", a.short]].forEach(([label, side]) => {
     d.appendChild(el("div", "score-break-h", label + " " + side.score + "/" + side.max + " condiciones"));
