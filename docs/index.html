@@ -683,10 +683,17 @@ function pullbackBreakdownBox(p) {
     "¿Pullback confirmado? — " + bestLabel + " " + best.score + "/" + best.max + " condiciones");
   d.appendChild(el("div", "note",
     "Se requieren 3/3: toque de EMA20 diaria, cierre de vuelta al lado de la tendencia y recomendación 4H alineada. "
-    + (best.ready ? "Pullback confirmado; además debe pasar los filtros tendenciales." : "Todavía faltan " + (best.max - best.score) + " condición(es) en la dirección más cercana.")));
+    + (best.ready
+      ? (best.independent_ready
+        ? "Pullback listo técnicamente; riesgo, noticias y horario todavía pueden impedir operar."
+        : "El setup está completo, pero la ruta independiente está bloqueada por filtros adicionales.")
+      : "Todavía faltan " + (best.max - best.score) + " condición(es) en la dirección más cercana.")));
   [["Compra", a.long], ["Venta", a.short]].forEach(([label, side]) => {
     d.appendChild(el("div", "score-break-h", label + " " + side.score + "/" + side.max + " condiciones"));
     d.appendChild(scoreReasonList(side.reasons));
+    d.appendChild(el("div", "score-break-h", "Filtros de seguridad " + label));
+    d.appendChild(scoreReasonList((side.filters || []).map(f =>
+      "[" + (f.ok ? "+1" : "+0") + "/1] " + f.text)));
   });
   return d;
 }
