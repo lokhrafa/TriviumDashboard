@@ -242,6 +242,45 @@
   .action-btn.bad  { background: var(--critical-bg); color: var(--critical);     border-color: var(--critical); }
   .action-btn.warn { background: var(--warning-bg);  color: var(--warning-text); border-color: var(--warning); }
 
+  .app-dialog {
+    width: min(440px, calc(100vw - 32px)); max-width: none; max-height: min(85vh, 640px);
+    padding: 0; overflow: auto; color: var(--text-primary); background: var(--surface-1);
+    border: 1px solid var(--border); border-radius: var(--radius-lg);
+    box-shadow: 0 24px 72px rgba(0,0,0,0.28);
+  }
+  .app-dialog::backdrop { background: rgba(9,14,13,0.58); backdrop-filter: blur(3px); }
+  .dialog-form { padding: 24px; }
+  .dialog-kicker {
+    margin: 0 0 8px; color: var(--series-1); font: 600 10px var(--font-mono);
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .dialog-title {
+    margin: 0; padding-right: 28px; font: 600 21px/1.2 var(--font-display);
+    color: var(--text-primary);
+  }
+  .dialog-message { margin: 10px 0 0; color: var(--text-secondary); line-height: 1.55; }
+  .dialog-field { display: grid; gap: 6px; margin-top: 18px; }
+  .dialog-field label { color: var(--text-secondary); font-size: 12px; font-weight: 600; }
+  .dialog-input {
+    width: 100%; min-height: 42px; padding: 9px 11px; color: var(--text-primary);
+    background: var(--page-plane); border: 1px solid var(--baseline);
+    border-radius: var(--radius-sm); font: 500 15px var(--font-mono);
+  }
+  .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 22px; }
+  .dialog-btn {
+    min-height: 36px; padding: 7px 13px; border: 1px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--text-primary); background: transparent;
+    font: 600 12px var(--font-mono); cursor: pointer;
+  }
+  .dialog-btn:hover { border-color: var(--series-1); }
+  .dialog-btn.primary { color: var(--page-plane); background: var(--series-1); border-color: var(--series-1); }
+  .dialog-btn.danger { color: var(--critical); border-color: var(--critical); background: var(--critical-bg); }
+  @media (max-width: 480px) {
+    .dialog-form { padding: 20px; }
+    .dialog-actions { flex-direction: column-reverse; }
+    .dialog-btn { width: 100%; }
+  }
+
   details.reasons { font-size: 12px; margin: 6px 0; color: var(--text-secondary); }
   details.reasons summary { cursor: pointer; font-weight: 600; font-family: var(--font-display); }
   details.reasons li { margin: 3px 0; }
@@ -382,6 +421,19 @@
 
 <div class="tooltip" id="tooltip"></div>
 
+<dialog class="app-dialog" id="app-dialog" aria-labelledby="app-dialog-title" aria-describedby="app-dialog-message">
+  <form class="dialog-form" id="app-dialog-form" method="dialog">
+    <p class="dialog-kicker">TVM · Trade desk</p>
+    <h2 class="dialog-title" id="app-dialog-title"></h2>
+    <p class="dialog-message" id="app-dialog-message"></p>
+    <div class="dialog-field" id="app-dialog-field" hidden></div>
+    <div class="dialog-actions">
+      <button class="dialog-btn" id="app-dialog-cancel" type="button">Cancelar</button>
+      <button class="dialog-btn primary" id="app-dialog-accept" type="submit" value="confirm">Aceptar</button>
+    </div>
+  </form>
+</dialog>
+
 <script>
 "use strict";
 
@@ -389,6 +441,7 @@ const $ = (id) => document.getElementById(id);
 const tooltip = $("tooltip");
 let lastAlertFp = null;
 let nextWaveAt = null;
+$("app-dialog-cancel").addEventListener("click", () => $("app-dialog").close("cancel"));
 
 // Última tarjeta renderizada por par + la firma (JSON) de los datos que la
 // produjeron -- poll() llama a render(state) cada 5s pero los datos de cada
@@ -418,6 +471,61 @@ function el(tag, cls, text) {
   if (cls) e.className = cls;
   if (text !== undefined && text !== null) e.textContent = text;
   return e;
+}
+
+function showDialog({title, message, field, defaultValue = "", choices,
+                     acceptLabel = "Aceptar", cancelLabel, danger = false}) {
+  const dialog = $("app-dialog");
+  const inputContainer = $("app-dialog-field");
+  const accept = $("app-dialog-accept");
+  const cancel = $("app-dialog-cancel");
+  $("app-dialog-title").textContent = title;
+  $("app-dialog-message").textContent = message;
+  accept.textContent = acceptLabel;
+  accept.className = "dialog-btn" + (danger ? " danger" : " primary");
+  cancel.hidden = !cancelLabel;
+  cancel.textContent = cancelLabel || "Cancelar";
+  inputContainer.replaceChildren();
+  inputContainer.hidden = !field;
+
+  let input;
+  if (field) {
+    const label = el("label", null, field);
+    input = choices ? el("select", "dialog-input") : el("input", "dialog-input");
+    if (choices) {
+      for (const choice of choices) input.appendChild(el("option", null, choice));
+    } else {
+      input.type = "text";
+      input.inputMode = "decimal";
+    }
+    input.value = defaultValue;
+    label.htmlFor = "app-dialog-input";
+    input.id = "app-dialog-input";
+    label.appendChild(input);
+    inputContainer.appendChild(label);
+  }
+
+  return new Promise((resolve) => {
+    dialog.addEventListener("close", () => {
+      resolve(dialog.returnValue === "confirm" ? (input ? input.value : true) : null);
+    }, {once: true});
+    dialog.showModal();
+    if (input) {
+      input.focus();
+      if (!choices) input.select();
+    } else {
+      accept.focus();
+    }
+  });
+}
+
+function showNotice(message, title = "Aviso") {
+  return showDialog({title, message, acceptLabel: "Entendido"});
+}
+
+function showConfirm(message, title = "Confirmar", acceptLabel = "Confirmar", danger = false) {
+  return showDialog({title, message, acceptLabel, cancelLabel: "Volver", danger})
+    .then((result) => result === true);
 }
 
 // ── <details> que recuerda si estaba abierto entre refrescos ──
@@ -524,12 +632,12 @@ async function postTradeAction(symbol, resultado, pips, motivo, entradaReal) {
     });
     const data = await r.json();
     if (!data.ok) {
-      alert("No se pudo actualizar la operación: " + (data.error || "error desconocido"));
+      await showNotice("No se pudo actualizar la operación: " + (data.error || "error desconocido"), "No se guardó el cambio");
       return false;
     }
     return true;
   } catch (e) {
-    alert("No se pudo contactar al dashboard para registrar el cambio.");
+    await showNotice("No se pudo contactar al dashboard para registrar el cambio.", "Sin conexión");
     return false;
   }
 }
@@ -546,12 +654,12 @@ async function postTradePartial(symbol, pipsTp1) {
     });
     const data = await r.json();
     if (!data.ok) {
-      alert("No se pudo registrar el parcial: " + (data.error || "error desconocido"));
+      await showNotice("No se pudo registrar el parcial: " + (data.error || "error desconocido"), "No se guardó el parcial");
       return false;
     }
     return true;
   } catch (e) {
-    alert("No se pudo contactar al dashboard para registrar el parcial.");
+    await showNotice("No se pudo contactar al dashboard para registrar el parcial.", "Sin conexión");
     return false;
   }
 }
@@ -567,25 +675,42 @@ function actionBtn(label, cls, onClick) {
   return b;
 }
 
-function promptPips(defaultVal, uni) {
+async function promptPips(defaultVal, uni) {
   const u = uni || "pips";
-  const raw = prompt("Resultado en " + u + " (con signo, ej. 32.5 o -45):",
-    (defaultVal === undefined || defaultVal === null) ? "" : String(defaultVal));
+  const raw = await showDialog({
+    title: "Registrar resultado",
+    message: "Indica el resultado final realizado en el bróker.",
+    field: "Resultado en " + u + " (usa signo, por ejemplo 32.5 o -45)",
+    defaultValue: (defaultVal === undefined || defaultVal === null) ? "" : String(defaultVal),
+    acceptLabel: "Continuar",
+    cancelLabel: "Cancelar",
+  });
   if (raw === null || raw.trim() === "") return undefined;
   const v = parseFloat(raw.replace(",", "."));
-  if (Number.isNaN(v)) { alert("Ese valor no es un número — no se registró nada."); return undefined; }
+  if (Number.isNaN(v)) {
+    await showNotice("Ese valor no es un número; no se registró nada.", "Valor no válido");
+    return undefined;
+  }
   return v;
 }
 
 // null = cancelado, undefined = "sin cambios" (usar el nivel guardado tal cual)
-function promptEntrada(defaultVal) {
-  const raw = prompt(
-    "Precio REAL al que se ejecutó en el bróker (deja igual si coincide con la entrada mostrada):",
-    (defaultVal === undefined || defaultVal === null) ? "" : String(defaultVal));
+async function promptEntrada(defaultVal) {
+  const raw = await showDialog({
+    title: "Precio de ejecución",
+    message: "Deja el valor sugerido si coincide con la entrada mostrada.",
+    field: "Precio real en el bróker",
+    defaultValue: (defaultVal === undefined || defaultVal === null) ? "" : String(defaultVal),
+    acceptLabel: "Registrar ejecución",
+    cancelLabel: "Cancelar",
+  });
   if (raw === null) return null;
   if (raw.trim() === "") return undefined;
   const v = parseFloat(raw.replace(",", "."));
-  if (Number.isNaN(v)) { alert("Ese valor no es un número — no se registró nada."); return null; }
+  if (Number.isNaN(v)) {
+    await showNotice("Ese valor no es un número; no se registró nada.", "Valor no válido");
+    return null;
+  }
   return v;
 }
 
@@ -1087,28 +1212,33 @@ function renderCard(p, history, newsWindowHours, ohlcHist) {
     const actsActiva = el("div", "actions");
     if (t.tp1_tocado && !tieneParcial) {
       actsActiva.appendChild(actionBtn("🥇 Cerré 50% en TP1", "ok", async () => {
-        const pips = promptPips(t.pnl_pips, uni);
+        const pips = await promptPips(t.pnl_pips, uni);
         if (pips === undefined) return;
         if (await postTradePartial(p.symbol, pips)) poll();
       }));
     }
     actsActiva.appendChild(actionBtn(tieneParcial ? "Cerró el resto en TP" : "Cerró en TP", "ok", async () => {
-      const pips = promptPips(t.pnl_pips, uni);
+      const pips = await promptPips(t.pnl_pips, uni);
       if (pips === undefined) return;
       if (await postTradeAction(p.symbol, "WIN", pips, "TP")) poll();
     }));
     actsActiva.appendChild(actionBtn(tieneParcial ? "Cerró el resto en SL" : "Cerró en SL", "bad", async () => {
-      const pips = promptPips(t.pnl_pips, uni);
+      const pips = await promptPips(t.pnl_pips, uni);
       if (pips === undefined) return;
       if (await postTradeAction(p.symbol, "LOSS", pips, "SL")) poll();
     }));
     actsActiva.appendChild(actionBtn("Cierre manual", null, async () => {
-      const resultado = (prompt("Resultado — escribe WIN, LOSS o BE:", "BE") || "").trim().toUpperCase();
-      if (!["WIN", "LOSS", "BE"].includes(resultado)) {
-        if (resultado) alert("Resultado no reconocido — escribe exactamente WIN, LOSS o BE.");
-        return;
-      }
-      const pips = promptPips(t.pnl_pips, uni);
+      const resultado = await showDialog({
+        title: "Cierre manual",
+        message: "Selecciona cómo terminó la operación.",
+        field: "Resultado",
+        choices: ["BE", "WIN", "LOSS"],
+        defaultValue: "BE",
+        acceptLabel: "Continuar",
+        cancelLabel: "Cancelar",
+      });
+      if (resultado === null) return;
+      const pips = await promptPips(t.pnl_pips, uni);
       if (pips === undefined) return;
       if (await postTradeAction(p.symbol, resultado, pips, "MANUAL")) poll();
     }));
@@ -1144,12 +1274,13 @@ function renderCard(p, history, newsWindowHours, ohlcHist) {
 
     const actsPend = el("div", "actions");
     actsPend.appendChild(actionBtn("Ejecutada en el bróker", "ok", async () => {
-      const entradaReal = promptEntrada(o.entrada);
+      const entradaReal = await promptEntrada(o.entrada);
       if (entradaReal === null) return;   // cancelado o valor inválido
       if (await postTradeAction(p.symbol, "ACTIVA", null, "EJECUCION", entradaReal)) poll();
     }));
     actsPend.appendChild(actionBtn("Cancelar orden", "warn", async () => {
-      if (!confirm("¿Cancelar esta orden pendiente? No se registrará como trade.")) return;
+      if (!await showConfirm("¿Cancelar esta orden pendiente? No se registrará como trade.",
+                             "Cancelar orden pendiente", "Sí, cancelar", true)) return;
       if (await postTradeAction(p.symbol, "CANCELADA", null, "MANUAL")) poll();
     }));
     card.appendChild(actsPend);
