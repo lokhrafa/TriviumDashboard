@@ -153,6 +153,28 @@
   }
   #btn-notify:hover { border-color: var(--series-1); color: var(--text-primary); }
 
+  .view-tabs { display: flex; gap: 4px; margin: 0 0 16px; border-bottom: 1px solid var(--gridline); }
+  .view-tab {
+    padding: 9px 14px; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
+    background: transparent; color: var(--text-secondary); font: 600 13px var(--font-body); cursor: pointer;
+  }
+  .view-tab[aria-selected="true"] { border-bottom-color: var(--series-1); color: var(--text-primary); }
+  .view-panel[hidden] { display: none; }
+  .candle-intro { margin: 0 0 14px; color: var(--text-secondary); }
+  .candle-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+  .candle-card { border-left-color: var(--baseline); }
+  .candle-card.status-confirmed { border-left-color: var(--good); }
+  .candle-card.status-blocked, .candle-card.status-no_data { border-left-color: var(--critical); }
+  .candle-card.status-pattern_detected, .candle-card.status-warming_up { border-left-color: var(--warning); }
+  .candle-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+  .candle-head h3 { margin: 0; font: 600 16px var(--font-display); }
+  .candle-status { font: 600 10.5px var(--font-mono); text-transform: uppercase; }
+  .candle-direction { font-weight: 600; margin-bottom: 8px; }
+  .candle-values { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; margin: 10px 0; }
+  .candle-value { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
+  .candle-value strong { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .candle-reason, .candle-freshness { margin: 8px 0 0; color: var(--text-muted); font-size: 11.5px; }
+
   .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(430px, 1fr)); gap: 14px; margin-bottom: 22px; }
   @media (max-width: 480px) { .cards { grid-template-columns: 1fr; } }
 
@@ -365,6 +387,14 @@
   <div id="banner-frozen" class="frozen-banner" style="display:none;"></div>
   <div id="banner"></div>
 
+  <div class="view-tabs" role="tablist" aria-label="Vistas del dashboard">
+    <button class="view-tab" id="tab-main" type="button" role="tab" aria-selected="true"
+            aria-controls="panel-main" tabindex="0">Panel principal</button>
+    <button class="view-tab" id="tab-candlestick" type="button" role="tab" aria-selected="false"
+            aria-controls="panel-candlestick" tabindex="-1">Patrones 4H</button>
+  </div>
+
+  <div class="view-panel" id="panel-main" role="tabpanel" aria-labelledby="tab-main" tabindex="0">
   <section id="portfolio-section" style="display:none;">
     <h2>Cartera — los 5 sistemas en conjunto</h2>
     <p class="sub" style="margin:-8px 0 12px;">Los límites de riesgo del footer son por par — esto es lo que no ve ninguno de ellos por separado.</p>
@@ -409,6 +439,17 @@
     <h2>Reglas de gestión de riesgo</h2>
     <div class="panel" id="panel-risk-rules">
       <p class="sub">Iguales para los 5 sistemas — cada uno lleva su propio capital y su propio 1% de riesgo.</p>
+    </div>
+  </section>
+  </div>
+
+  <section class="view-panel" id="panel-candlestick" role="tabpanel" aria-labelledby="tab-candlestick"
+           tabindex="0" hidden>
+    <h2>Señales de patrones de velas 4H</h2>
+    <p class="candle-intro">Lectura informativa basada en velas 4H cerradas, confirmación del precio y tendencia diaria EMA50/EMA200.
+      No ejecuta operaciones ni garantiza resultados.</p>
+    <div class="candle-grid" id="candlestick-cards">
+      <div class="card"><p class="note">Esperando datos de los instrumentos…</p></div>
     </div>
   </section>
 
@@ -1598,6 +1639,125 @@ function renderPortfolio(pf) {
   });
 }
 
+const lastCandlestickCardSig = {};
+const lastCandlestickCardNode = {};
+let lastCandlestickRenderSig = null;
+const candlestickStatusLabels = {
+  warming_up: "Reuniendo datos",
+  no_data: "Sin datos",
+  no_signal: "Sin patrón",
+  pattern_detected: "Patrón detectado",
+  blocked: "Bloqueada",
+  confirmed: "Confirmada",
+};
+const candlestickPatternLabels = {
+  bullish_engulfing: "Envolvente alcista",
+  bearish_engulfing: "Envolvente bajista",
+  hammer: "Martillo",
+  shooting_star: "Estrella fugaz",
+};
+
+function renderCandlestickCard(name, pair) {
+  const data = pair && pair.candlestick;
+  const status = data && candlestickStatusLabels[data.status] ? data.status : "no_data";
+  const card = el("article", "card candle-card status-" + status);
+  const head = el("div", "candle-head");
+  head.appendChild(el("h3", null, name));
+  head.appendChild(el("span", "candle-status", candlestickStatusLabels[status]));
+  card.appendChild(head);
+
+  if (!data) {
+    card.appendChild(el("p", "candle-reason", "Esperando datos del análisis."));
+    return card;
+  }
+
+  const signal = data.signal;
+  const pattern = signal && signal.pattern;
+  const direction = signal && signal.direction;
+  if (pattern) {
+    card.appendChild(el("div", "candle-direction",
+      (candlestickPatternLabels[pattern] || pattern) +
+      (direction ? " · " + (direction === "bullish" ? "Alcista" : "Bajista") : "")));
+  }
+  if (status === "confirmed" && signal) {
+    const decimals = pair && pair.decimals !== undefined ? pair.decimals : 5;
+    const values = el("div", "candle-values");
+    [
+      ["Entrada", signal.entry],
+      ["Stop loss", signal.stop_loss],
+      ["Take profit", signal.take_profit],
+      ["R:R", signal.reward_risk],
+    ].forEach(([label, value]) => {
+      const row = el("div", "candle-value");
+      row.appendChild(el("span", null, label));
+      row.appendChild(el("strong", null,
+        label === "R:R" ? Number(value).toFixed(2) : px(value, decimals)));
+      values.appendChild(row);
+    });
+    card.appendChild(values);
+    if (signal.confirmed_at) {
+      const confirmedAt = new Date(Number(signal.confirmed_at) * 1000);
+      if (!Number.isNaN(confirmedAt.getTime())) {
+        card.appendChild(el("p", "candle-reason",
+          "Confirmada: " + formatLocalTimestamp(confirmedAt.toISOString())));
+      }
+    }
+  }
+  if (data.reason) card.appendChild(el("p", "candle-reason", data.reason));
+  card.appendChild(el("p", "candle-freshness",
+    "Fuente: TradingView · actualizado " + formatLocalTimestamp(data.updated)));
+  return card;
+}
+
+function renderCandlestickCards(state, pairsOrder) {
+  const container = $("candlestick-cards");
+  const pairs = state.pairs || {};
+  const signature = JSON.stringify(pairsOrder.map(name => {
+    const pair = pairs[name];
+    return pair && pair.candlestick || null;
+  }));
+  if (signature === lastCandlestickRenderSig) return;
+  lastCandlestickRenderSig = signature;
+  const frag = document.createDocumentFragment();
+  pairsOrder.forEach(name => {
+    const pair = pairs[name];
+    const candlestick = pair && pair.candlestick;
+    const signature = JSON.stringify(candlestick || null);
+    if (signature !== lastCandlestickCardSig[name] || !lastCandlestickCardNode[name]) {
+      lastCandlestickCardSig[name] = signature;
+      lastCandlestickCardNode[name] = renderCandlestickCard(name, pair);
+    }
+    frag.appendChild(lastCandlestickCardNode[name]);
+  });
+  container.replaceChildren(frag);
+}
+
+function setupViewTabs() {
+  const tabs = Array.from(document.querySelectorAll('[role="tab"]'));
+  function selectTab(selected, focus) {
+    tabs.forEach(tab => {
+      const active = tab === selected;
+      tab.setAttribute("aria-selected", String(active));
+      tab.tabIndex = active ? 0 : -1;
+      $(tab.getAttribute("aria-controls")).hidden = !active;
+    });
+    if (focus) selected.focus();
+  }
+  tabs.forEach((tab, index) => {
+    tab.addEventListener("click", () => selectTab(tab, false));
+    tab.addEventListener("keydown", event => {
+      let nextIndex = index;
+      if (event.key === "ArrowRight") nextIndex = (index + 1) % tabs.length;
+      else if (event.key === "ArrowLeft") nextIndex = (index + tabs.length - 1) % tabs.length;
+      else if (event.key === "Home") nextIndex = 0;
+      else if (event.key === "End") nextIndex = tabs.length - 1;
+      else return;
+      event.preventDefault();
+      selectTab(tabs[nextIndex], true);
+    });
+  });
+}
+
 // ── Render principal ──
 function render(state) {
   const market = state.market, window_ = state.window;
@@ -1629,6 +1789,7 @@ function render(state) {
   }
 
   const pairsOrder = ["AUD/USD", "GBP/USD", "EUR/USD", "NZD/USD", "US500"];
+  renderCandlestickCards(state, pairsOrder);
   const cards = $("cards");
   const hasData = state.pairs && Object.keys(state.pairs).length > 0;
   if (hasData) {
@@ -1869,6 +2030,7 @@ $("btn-refresh").addEventListener("click", async () => {
   }
 });
 
+setupViewTabs();
 setupNotifyButton();
 pollHistory();
 poll();
